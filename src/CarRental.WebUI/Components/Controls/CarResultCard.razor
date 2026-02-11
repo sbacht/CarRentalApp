@@ -1,0 +1,51 @@
+@using CarRental.Common.Dtos
+@using CarRental.Common.Enums
+
+<MudPaper Class="pa-4 my-2 d-flex align-center car-result-card" Style="border-radius: 12px; border: 1px solid #e0e0e0;">
+    <MudImage Src="@ImagePath" 
+              Width="150" 
+              Height="100" 
+              ObjectFit="ObjectFit.Cover" 
+              Class="rounded-lg mr-4" />
+    
+    <div class="flex-grow-1">
+        <MudText Typo="Typo.h6">@Car.Brand @Car.Model</MudText>
+        <MudText Typo="Typo.subtitle2" Class="mud-text-secondary mb-2">@Car.Class.ToString()</MudText>
+        <MudStack Spacing="1">
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.EventSeat" Size="Size.Small" Class="mr-2"/>
+                <MudText Typo="Typo.body2">Seats: @Car.SeatsCount</MudText>
+            </div>
+            <div class="d-flex align-center">
+                <MudIcon Icon="@GetTransmissionIcon()" Size="Size.Small" Class="mr-2"/>
+                <MudText Typo="Typo.body2">Transmission: @Car.TransmissionType.ToString()</MudText>
+            </div>
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.LocalGasStation" Size="Size.Small" Class="mr-2"/>
+                <MudText Typo="Typo.body2">Fuel: @Car.Fuel</MudText>
+            </div>
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.Star" Size="Size.Small" Class="mr-2"/>
+                <MudText Typo="Typo.body2">Class: @Car.Class.ToString()</MudText>
+            </div>
+        </MudStack>
+    </div>
+
+    <div class="d-flex flex-column align-end justify-space-between ml-4" style="height: 100%;">
+        <MudText Typo="Typo.h5" Color="Color.Primary" Class="font-weight-bold">@Car.CarPrice.ToString("C")</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Secondary" Class="mt-auto" Disabled="@Disabled" OnClick="OnBookNow">
+            Book Now
+        </MudButton>
+    </div>
+</MudPaper>
+
+@code {
+    [Parameter] public CarDto Car { get; set; } = default!;
+    [Parameter] public EventCallback OnBookNow { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    private string ImagePath => $"images/{Car.Brand} {Car.Model}.jpg";
+    private string GetTransmissionIcon() =>
+        Car.TransmissionType == Transmission.Automatic
+            ? Icons.Material.Filled.Settings
+            : Icons.Material.Filled.Shuffle;
+}

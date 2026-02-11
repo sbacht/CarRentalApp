@@ -1,0 +1,362 @@
+@page "/search"
+@using System.Globalization
+@inject IApiClient ApiClient
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<PageTitle>Search</PageTitle>
+
+
+<SearchBar @bind-SelectedCity="_selectedCity"
+           @bind-DateRange="_dateRange"
+           OnSearch="HandleSearchAsync"
+           Disabled="_isLoading" />
+
+<MudGrid GutterSize="3" Class="mt-2">
+    <MudItem xs="12" md="4" lg="3">
+        <CarFilter Disabled="_isLoading"
+                   TransmissionOptions="_transmissionOptions"
+                   FuelTypeOptions="_fuelTypeOptions"
+                   SeatsOptions="_seatsOptions"
+                   SelectedTransmissions="_selectedTransmissions"
+                   SelectedFuelTypes="_selectedFuelTypes"
+                   SelectedSeats="_selectedSeats"
+                   SelectedTransmissionsChanged="OnSelectedTransmissionsChanged"
+                   SelectedFuelTypesChanged="OnSelectedFuelTypesChanged"
+                   SelectedSeatsChanged="OnSelectedSeatsChanged"
+                   OnClearAll="ClearAllFilters" />
+    </MudItem>
+
+    <MudItem xs="12" md="8" lg="9">
+        <MudPaper Class="pa-2">
+            @if (_availableCars.Count == 0)
+            {
+                <MudText Class="pa-4">No cars found. Adjust your search and try again.</MudText>
+            }
+            else if (_filteredCars.Count == 0)
+            {
+                <MudText Class="pa-4">No cars match the selected filters.</MudText>
+            }
+            else
+            {
+                <MudGrid GutterSize="3">
+                    @foreach (var car in _filteredCars)
+                    {
+                        <MudItem xs="12" sm="12" md="12" lg="12">
+                            <CarResultCard Car="car"
+                                           Disabled="@_isLoading"
+                                           OnBookNow="@(() => BookNowAsync(car))" />
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+<MudOverlay Visible="@_isLoading" DarkBackground="true" AutoClose="false">
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+</MudOverlay>
+
+@code {
+
+    private static readonly string[] Cities = ["Berlin", "Munich", "Hamburg", "Frankfurt", "Stuttgart"];
+
+    [SupplyParameterFromQuery(Name = "city")]
+    public string? City { get; set; }
+
+    [SupplyParameterFromQuery(Name = "startDate")]
+    public DateTime? StartDate { get; set; }
+
+    [SupplyParameterFromQuery(Name = "endDate")]
+    public DateTime? EndDate { get; set; }
+
+    private string? _selectedCity = Cities[0];
+    private DateRange _dateRange = new(DateTime.UtcNow.Date, DateTime.UtcNow.Date.AddDays(1));
+    private List<CarDto> _availableCars = [];
+    private List<CarDto> _filteredCars = [];
+    private bool _isLoading;
+    private string? _lastQueryKey;
+
+    // Filter options derived from loaded cars
+    private IReadOnlyList<string> _transmissionOptions = [];
+    private IReadOnlyList<string> _fuelTypeOptions = [];
+    private IReadOnlyList<string> _seatsOptions = [];
+
+    // Selected filter values
+    private HashSet<string> _selectedTransmissions = CreateSelectionSet();
+    private HashSet<string> _selectedFuelTypes = CreateSelectionSet();
+    private HashSet<string> _selectedSeats = CreateSelectionSet();
+
+    private bool HasValidDateRange =>
+        _dateRange.Start is not null &&
+        _dateRange.End is not null &&
+        _dateRange.Start.Value.Date >= DateTime.UtcNow.Date &&
+        _dateRange.End.Value.Date > _dateRange.Start.Value.Date;
+
+    private bool CanSearch => !string.IsNullOrWhiteSpace(_selectedCity) && HasValidDateRange;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var queryKey = $"{City}|{StartDate:O}|{EndDate:O}";
+        if (queryKey == _lastQueryKey)
+        {
+            return;
+        }
+
+        _lastQueryKey = queryKey;
+        if (string.IsNullOrWhiteSpace(City) || StartDate is null || EndDate is null)
+        {
+            return;
+        }
+
+        var matchedCity = Cities.FirstOrDefault(c => string.Equals(c, City, StringComparison.OrdinalIgnoreCase));
+        if (matchedCity is null)
+        {
+            return;
+        }
+
+        _selectedCity = matchedCity;
+        _dateRange = new DateRange(NormalizeUtcDate(StartDate.Value), NormalizeUtcDate(EndDate.Value));
+
+        if (CanSearch)
+        {
+            await RunSearchAsync();
+        }
+    }
+
+    private async Task HandleSearchAsync()
+    {
+        if (!CanSearch)
+        {
+            Snackbar.Add("Please choose a city and a valid rental period.", Severity.Warning);
+            return;
+        }
+
+        var startDate = NormalizeUtcDate(_dateRange.Start!.Value);
+        var endDate = NormalizeUtcDate(_dateRange.End!.Value);
+        var queryKey = $"{_selectedCity}|{startDate:O}|{endDate:O}";
+
+        _lastQueryKey = queryKey;
+        var city = Uri.EscapeDataString(_selectedCity!);
+        var start = Uri.EscapeDataString(startDate.ToString("O"));
+        var end = Uri.EscapeDataString(endDate.ToString("O"));
+        NavigationManager.NavigateTo($"/search?city={city}&startDate={start}&endDate={end}", replace: true);
+
+        await RunSearchAsync();
+    }
+
+    private async Task RunSearchAsync()
+    {
+        if (!CanSearch)
+        {
+            Snackbar.Add("Please choose a city and a valid rental period.", Severity.Warning);
+            return;
+        }
+
+        _isLoading = true;
+
+        try
+        {
+            _availableCars = (await ApiClient.GetAvailableCarsAsync(
+                _selectedCity!,
+                _dateRange.Start!.Value,
+                _dateRange.End!.Value)).ToList();
+
+            BuildFilterOptions();
+            ApplyClientFilters();
+
+            if (_availableCars.Count == 0)
+            {
+                Snackbar.Add("No cars are available for the selected dates.", Severity.Info);
+            }
+        }
+        catch (ApiClientException ex)
+        {
+            ShowApiError(ex);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task BookNowAsync(CarDto car)
+    {
+        if (!HasValidDateRange)
+        {
+            Snackbar.Add("Select a valid rental period before booking.", Severity.Warning);
+            return;
+        }
+
+        var start = _dateRange.Start!.Value;
+        var end = _dateRange.End!.Value;
+        var message = $"Book {car.Brand} {car.Model} in {car.Location} from {start:MMM d} to {end:MMM d}?";
+
+        var confirmed = await DialogService.ShowMessageBox(
+            "Confirm booking",
+            message,
+            yesText: "Book",
+            cancelText: "Cancel");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        _isLoading = true;
+
+        try
+        {
+            var bookingId = await ApiClient.CreateBookingAsync(car.Id, start, end);
+            Snackbar.Add($"Booking confirmed! Your reservation ID is #{bookingId}.", Severity.Success);
+            _availableCars = (await ApiClient.GetAvailableCarsAsync(_selectedCity!, start, end)).ToList();
+            BuildFilterOptions();
+            ApplyClientFilters();
+        }
+        catch (ApiClientException ex)
+        {
+            if (ex.Message.Contains("not available", StringComparison.OrdinalIgnoreCase))
+            {
+                Snackbar.Add("Sorry, this car was just booked by someone else.", Severity.Error);
+            }
+            else
+            {
+                ShowApiError(ex);
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ShowApiError(ApiClientException ex)
+    {
+        Snackbar.Add(ex.Message, Severity.Error);
+
+        if (ex.ValidationErrors is null)
+        {
+            return;
+        }
+
+        foreach (var (_, errors) in ex.ValidationErrors)
+        {
+            foreach (var error in errors)
+            {
+                Snackbar.Add(error, Severity.Error);
+            }
+        }
+    }
+
+    private static DateTime NormalizeUtcDate(DateTime date) =>
+        DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
+
+    private static HashSet<string> CreateSelectionSet() =>
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private void BuildFilterOptions()
+    {
+        _transmissionOptions = _availableCars
+            .Select(car => car.TransmissionType.ToString())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        _fuelTypeOptions = _availableCars
+            .Select(car => car.Fuel.ToString())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        _seatsOptions = _availableCars
+            .Select(car => car.SeatsCount.ToString(CultureInfo.InvariantCulture))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(value => int.TryParse(value, out var parsed) ? parsed : int.MaxValue)
+            .ToList();
+
+        KeepSelectionsWithinOptions();
+    }
+
+    private void KeepSelectionsWithinOptions()
+    {
+        KeepOnlyExistingValues(_selectedTransmissions, _transmissionOptions);
+        KeepOnlyExistingValues(_selectedFuelTypes, _fuelTypeOptions);
+        KeepOnlyExistingValues(_selectedSeats, _seatsOptions);
+    }
+
+    private static void KeepOnlyExistingValues(HashSet<string> selectedValues, IReadOnlyList<string> validOptions)
+    {
+        var validSet = new HashSet<string>(validOptions, selectedValues.Comparer);
+        selectedValues.RemoveWhere(value => !validSet.Contains(value));
+    }
+
+    private void ApplyClientFilters()
+    {
+        _filteredCars = _availableCars.Where(MatchesSelectedFilters).ToList();
+    }
+
+    private bool MatchesSelectedFilters(CarDto car)
+    {
+        if (_selectedTransmissions.Count > 0 && !_selectedTransmissions.Contains(car.TransmissionType.ToString()))
+        {
+            return false;
+        }
+
+        if (_selectedFuelTypes.Count > 0 && !_selectedFuelTypes.Contains(car.Fuel.ToString()))
+        {
+            return false;
+        }
+
+        if (_selectedSeats.Count > 0 && !_selectedSeats.Contains(car.SeatsCount.ToString(CultureInfo.InvariantCulture)))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private Task OnSelectedTransmissionsChanged(IEnumerable<string> values)
+    {
+        _selectedTransmissions = ToSelectionSet(values);
+        ApplyClientFilters();
+        return Task.CompletedTask;
+    }
+
+    private Task OnSelectedFuelTypesChanged(IEnumerable<string> values)
+    {
+        _selectedFuelTypes = ToSelectionSet(values);
+        ApplyClientFilters();
+        return Task.CompletedTask;
+    }
+
+    private Task OnSelectedSeatsChanged(IEnumerable<string> values)
+    {
+        _selectedSeats = ToSelectionSet(values);
+        ApplyClientFilters();
+        return Task.CompletedTask;
+    }
+
+    private Task ClearAllFilters()
+    {
+        _selectedTransmissions.Clear();
+        _selectedFuelTypes.Clear();
+        _selectedSeats.Clear();
+        ApplyClientFilters();
+        return Task.CompletedTask;
+    }
+
+    private static HashSet<string> ToSelectionSet(IEnumerable<string>? values)
+    {
+        if (values is null)
+        {
+            return CreateSelectionSet();
+        }
+
+        return values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+}

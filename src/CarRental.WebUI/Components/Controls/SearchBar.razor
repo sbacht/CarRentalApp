@@ -1,0 +1,114 @@
+@inject NavigationManager NavigationManager
+@inject ISnackbar Snackbar
+
+<MudPaper Class="pa-6">
+    <MudText Typo="Typo.h4" Class="mb-2">Car Rental</MudText>
+    <MudText Typo="Typo.body1" Class="mb-6">Pick your city and rental period to see available cars.</MudText>
+
+    <MudGrid>
+        <MudItem xs="12" md="4">
+            <MudSelect T="string" Label="City" Variant="Variant.Outlined" Value="_selectedCity" ValueChanged="OnSelectedCityChanged">
+                @foreach (var city in Cities)
+                {
+                    <MudSelectItem T="string" Value="@city">@city</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="5">
+            <MudDateRangePicker Label="Rental period"
+                                Variant="Variant.Outlined"
+                                MinDate="@DateTime.UtcNow.Date"
+                                DateRange="@_dateRange"
+                                DateRangeChanged="OnDateRangeChanged" />
+        </MudItem>
+        <MudItem xs="12" md="3" Class="d-flex align-center">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       Disabled="@(!CanSearch || Disabled)"
+                       OnClick="HandleSearchAsync">
+                Search
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@code {
+    private static readonly string[] Cities = ["Berlin", "Munich", "Hamburg", "Frankfurt", "Stuttgart"];
+
+    [Parameter]
+    public string? SelectedCity { get; set; }
+
+    [Parameter]
+    public EventCallback<string?> SelectedCityChanged { get; set; }
+
+    [Parameter]
+    public DateRange DateRange { get; set; } = new(DateTime.UtcNow.Date, DateTime.UtcNow.Date.AddDays(1));
+
+    [Parameter]
+    public EventCallback<DateRange> DateRangeChanged { get; set; }
+
+    [Parameter]
+    public EventCallback OnSearch { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    private string? _selectedCity = Cities[0];
+    private DateRange _dateRange = new(DateTime.UtcNow.Date, DateTime.UtcNow.Date.AddDays(1));
+
+    private bool HasValidDateRange =>
+        _dateRange.Start is not null &&
+        _dateRange.End is not null &&
+        _dateRange.Start.Value.Date >= DateTime.UtcNow.Date &&
+        _dateRange.End.Value.Date > _dateRange.Start.Value.Date;
+
+    private bool CanSearch => !string.IsNullOrWhiteSpace(_selectedCity) && HasValidDateRange;
+
+    protected override void OnParametersSet()
+    {
+        _selectedCity = string.IsNullOrWhiteSpace(SelectedCity) ? Cities[0] : SelectedCity;
+        _dateRange = DateRange;
+    }
+
+    private async Task OnSelectedCityChanged(string? city)
+    {
+        _selectedCity = city;
+        await SelectedCityChanged.InvokeAsync(_selectedCity);
+    }
+
+    private async Task OnDateRangeChanged(DateRange range)
+    {
+        _dateRange = range;
+        await DateRangeChanged.InvokeAsync(_dateRange);
+    }
+
+    private async Task HandleSearchAsync()
+    {
+        if (!CanSearch)
+        {
+            Snackbar.Add("Please choose a city and a valid rental period.", Severity.Warning);
+            return;
+        }
+
+        await SelectedCityChanged.InvokeAsync(_selectedCity);
+        await DateRangeChanged.InvokeAsync(_dateRange);
+
+        if (OnSearch.HasDelegate)
+        {
+            await OnSearch.InvokeAsync();
+            return;
+        }
+
+        var startDate = NormalizeUtcDate(_dateRange.Start!.Value);
+        var endDate = NormalizeUtcDate(_dateRange.End!.Value);
+        var city = Uri.EscapeDataString(_selectedCity!);
+        var start = Uri.EscapeDataString(startDate.ToString("O"));
+        var end = Uri.EscapeDataString(endDate.ToString("O"));
+
+        NavigationManager.NavigateTo($"/search?city={city}&startDate={start}&endDate={end}");
+    }
+
+    private static DateTime NormalizeUtcDate(DateTime date) =>
+        DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
+}

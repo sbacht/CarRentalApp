@@ -1,0 +1,88 @@
+@using MudBlazor
+
+<MudPaper Class="pa-4">
+    <MudStack Spacing="2">
+        <MudText Typo="Typo.h6">Filters</MudText>
+
+        <MudSelect T="string"
+                   Label="Transmission"
+                   Variant="Variant.Outlined"
+                   Dense="true"
+                   Disabled="@Disabled"
+                   MultiSelection="true"
+                   SelectedValues="@SelectedTransmissions"
+                   SelectedValuesChanged="SelectedTransmissionsChanged">
+            @foreach (var transmission in TransmissionOptions)
+            {
+                <MudSelectItem T="string" Value="@transmission">@transmission</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudSelect T="string"
+                   Label="Fuel Type"
+                   Variant="Variant.Outlined"
+                   Dense="true"
+                   Disabled="@Disabled"
+                   MultiSelection="true"
+                   SelectedValues="@SelectedFuelTypes"
+                   SelectedValuesChanged="SelectedFuelTypesChanged">
+            @foreach (var fuel in FuelTypeOptions)
+            {
+                <MudSelectItem T="string" Value="@fuel">@fuel</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudSelect T="string"
+                   Label="Seats"
+                   Variant="Variant.Outlined"
+                   Dense="true"
+                   Disabled="@Disabled"
+                   MultiSelection="true"
+                   SelectedValues="@SelectedSeats"
+                   SelectedValuesChanged="SelectedSeatsChanged">
+            @foreach (var seats in SeatsOptions)
+            {
+                <MudSelectItem T="string" Value="@seats">@seats</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Primary"
+                   Disabled="@(!HasSelectedFilters || Disabled)"
+                   OnClick="OnClearAllClicked">
+            Clear filters
+        </MudButton>
+    </MudStack>
+</MudPaper>
+
+@code {
+    [Parameter] public bool Disabled { get; set; }
+
+    [Parameter] public IReadOnlyList<string> TransmissionOptions { get; set; } = [];
+    [Parameter] public IReadOnlyList<string> FuelTypeOptions { get; set; } = [];
+    [Parameter] public IReadOnlyList<string> SeatsOptions { get; set; } = [];
+
+    [Parameter] public IEnumerable<string> SelectedTransmissions { get; set; } = [];
+    [Parameter] public EventCallback<IEnumerable<string>> SelectedTransmissionsChanged { get; set; }
+
+    [Parameter] public IEnumerable<string> SelectedFuelTypes { get; set; } = [];
+    [Parameter] public EventCallback<IEnumerable<string>> SelectedFuelTypesChanged { get; set; }
+
+    [Parameter] public IEnumerable<string> SelectedSeats { get; set; } = [];
+    [Parameter] public EventCallback<IEnumerable<string>> SelectedSeatsChanged { get; set; }
+
+    [Parameter] public EventCallback OnClearAll { get; set; }
+
+    private bool HasSelectedFilters =>
+        SelectedTransmissions.Any() ||
+        SelectedFuelTypes.Any() ||
+        SelectedSeats.Any();
+
+    private async Task OnClearAllClicked()
+    {
+        if (OnClearAll.HasDelegate)
+        {
+            await OnClearAll.InvokeAsync();
+        }
+    }
+}

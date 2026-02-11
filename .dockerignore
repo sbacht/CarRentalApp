@@ -1,0 +1,13 @@
+.git
+.gitignore
+.idea
+.DS_Store
+
+**/bin
+**/obj
+**/.vs
+
+CarRentalApp.db
+identifier.sqlite
+
+README.MD
