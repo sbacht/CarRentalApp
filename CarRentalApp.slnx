@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/CarRental.Application/">
+    <Project Path="src/CarRental.Application/CarRental.Application.csproj" />
+  </Folder>
+  <Folder Name="/src/CarRental.Common/">
+    <Project Path="src/CarRental.Common/CarRental.Common.csproj" />
+  </Folder>
+  <Folder Name="/src/CarRental.Domain/">
+    <Project Path="src/CarRental.Domain/CarRental.Domain.csproj" />
+  </Folder>
+  <Folder Name="/src/CarRental.Infrastructure/">
+    <Project Path="src/CarRental.Infrastructure/CarRental.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/CarRental.WebUI/">
+    <Project Path="src/CarRental.WebUI/CarRental.WebUI.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CarRental.Application.UnitTests/CarRental.Application.UnitTests.csproj" />
+  </Folder>
+</Solution>

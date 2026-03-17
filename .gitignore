@@ -1,0 +1,79 @@
+# .NET
+# Build results
+bin/
+obj/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio Code
+.vscode/
+
+# Rider
+.idea/
+*.sln.iml
+
+# NuGet
+*.nupkg
+# NuGet Packages
+*.snupkg
+# NuGet restore result
+*.nuget
+
+# ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+# Entity Framework Migrations
+Migrations/
+
+# Logs
+*.log
+
+# Test results
+TestResults/
+
+# Publish output
+publish/
+
+# Others
+*.vspscc
+*.vssscc
+
+# Windows image file caches
+Thumbs.db
+
+# macOS
+.DS_Store
+
+# Temporary files
+~$*
+
+# Resharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+
+# DotCover
+*.dotCover
+
+# Coverage
+coverage/
+
+# Local history
+.localhistory/
+
+# Backup & crash reports
+*.bak
+*.swp
+*.tmp
+*.crash
+
+# Ignore all files ending with .old
+*.old
+
+CarRentalApp.db-shm
+CarRentalApp.db-wal
+
+CarRentalApp.db
